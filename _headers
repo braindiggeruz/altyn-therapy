@@ -1,0 +1,28 @@
+# Cloudflare Pages headers — caching + security for static assets.
+
+# Long cache for hashed JS/CSS bundles (immutable).
+/assets/index-*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Custom enhancement scripts — short cache so updates roll out fast.
+/assets/altyn-pixel.js
+  Cache-Control: public, max-age=3600, must-revalidate
+/assets/altyn-enhance.js
+  Cache-Control: public, max-age=3600, must-revalidate
+/assets/altyn-enhance.css
+  Cache-Control: public, max-age=3600, must-revalidate
+
+# Testimonial videos — long cache (content is stable).
+/testimonials/*.mp4
+  Cache-Control: public, max-age=2592000, immutable
+  Content-Type: video/mp4
+  Accept-Ranges: bytes
+/testimonials/posters/*.jpg
+  Cache-Control: public, max-age=2592000, immutable
+  Content-Type: image/jpeg
+
+# Default security headers
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: geolocation=(), microphone=(), camera=()
