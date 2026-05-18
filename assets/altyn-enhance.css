@@ -427,3 +427,102 @@ body.altyn-sticky-pad {
     animation: none !important;
   }
 }
+
+/* ---------- HERO PRICE BADGE (10$) -------------------------------- */
+.altyn-price-badge {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  text-decoration: none;
+  font-family: 'Raleway', system-ui, -apple-system, sans-serif;
+  margin: 0 0 18px;
+  padding: 12px 18px 13px;
+  background: linear-gradient(135deg, #FBF6EE 0%, #F4E6CF 100%);
+  border: 1px solid rgba(201, 169, 110, 0.55);
+  border-radius: 14px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 6px 22px -10px rgba(107, 45, 62, 0.28),
+    0 2px 6px -2px rgba(45, 26, 32, 0.12);
+  color: #2D1A20;
+  position: relative;
+  overflow: hidden;
+  transition: transform .25s ease, box-shadow .25s ease;
+  max-width: 100%;
+}
+.altyn-price-badge::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 80% at 100% 0%, rgba(201, 169, 110, 0.18) 0%, transparent 60%);
+  pointer-events: none;
+}
+.altyn-price-badge:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.85) inset,
+    0 12px 28px -10px rgba(107, 45, 62, 0.32),
+    0 4px 10px -2px rgba(45, 26, 32, 0.16);
+}
+.altyn-price-badge__row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+.altyn-price-badge__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #C9A96E;
+  box-shadow: 0 0 0 4px rgba(201, 169, 110, 0.18);
+  flex-shrink: 0;
+}
+.altyn-price-badge__title {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 16px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: #2D1A20;
+  line-height: 1.2;
+}
+.altyn-price-badge__price {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: #6B2D3E;
+  letter-spacing: 0.01em;
+  margin-left: 2px;
+  padding: 2px 9px;
+  background: #ffffff;
+  border-radius: 999px;
+  border: 1px solid rgba(107, 45, 62, 0.18);
+  white-space: nowrap;
+}
+.altyn-price-badge__note {
+  display: block;
+  font-size: 12px;
+  line-height: 1.45;
+  color: rgba(45, 26, 32, 0.7);
+  font-weight: 400;
+  letter-spacing: 0.005em;
+  position: relative;
+  z-index: 1;
+}
+@media (max-width: 420px) {
+  .altyn-price-badge { padding: 11px 14px 12px; border-radius: 12px; }
+  .altyn-price-badge__title { font-size: 14.5px; }
+  .altyn-price-badge__price { font-size: 15.5px; padding: 2px 8px; }
+  .altyn-price-badge__note  { font-size: 11.5px; }
+}
+
+/* Sticky bar — single full-width button variant */
+.altyn-sticky-cta a.primary--full {
+  flex: 1 1 auto;
+  width: 100%;
+  justify-content: center;
+}

@@ -8,10 +8,9 @@
   'use strict';
 
   // ---------- Configuration ----------
-  var TG = 'https://t.me/altyntherapybot';
-  var WA = 'https://wa.me/77077198561?text=' + encodeURIComponent(
-    'Здравствуйте! Хочу записаться на бесплатный разбор'
-  );
+  var TG = 'https://t.me/Altyn2304';
+  // All CTAs now route to the same Telegram contact.
+  var WA = TG;
 
   // 7 testimonials (videos already optimised to ~540×960 H.264 + AAC).
   // Captions are neutral — no fake names, no medical claims.
@@ -98,9 +97,9 @@
       target: '_blank',
       rel: 'noopener',
       'data-altyn-cta': 'vt-section'
-    }, 'Записаться на бесплатный разбор');
+    }, 'Записаться на диагностический разбор — 10$');
     ctaWrap.appendChild(cta);
-    ctaWrap.appendChild(el('span', { class: 'altyn-vt__cta-note' }, '1 час · онлайн · без оплаты'));
+    ctaWrap.appendChild(el('span', { class: 'altyn-vt__cta-note' }, '60 минут · онлайн · сумма засчитывается при продолжении работы'));
     sec.appendChild(ctaWrap);
 
     return sec;
@@ -131,8 +130,8 @@
       'data-altyn-cta': 'vt-modal-tg'
     }, 'Записаться');
     var secondary = el('a', {
-      class: 'secondary', href: WA, target: '_blank', rel: 'noopener',
-      'data-altyn-cta': 'vt-modal-wa'
+      class: 'secondary', href: TG, target: '_blank', rel: 'noopener',
+      'data-altyn-cta': 'vt-modal-tg-alt', style: 'display:none'
     }, 'WhatsApp');
     ctaRow.appendChild(primary);
     ctaRow.appendChild(secondary);
@@ -248,13 +247,9 @@
   function buildSticky() {
     var bar = el('div', { class: 'altyn-sticky-cta', role: 'navigation', 'aria-label': 'Быстрая запись' });
     bar.innerHTML =
-      '<a href="' + TG + '" target="_blank" rel="noopener" class="primary" data-altyn-cta="sticky-tg">' +
+      '<a href="' + TG + '" target="_blank" rel="noopener" class="primary primary--full" data-altyn-cta="sticky-tg">' +
         '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>' +
-        '<span>Записаться</span>' +
-      '</a>' +
-      '<a href="' + WA + '" target="_blank" rel="noopener" class="wa" data-altyn-cta="sticky-wa" aria-label="WhatsApp">' +
-        '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.47 14.38c-.3-.15-1.74-.86-2.01-.96-.27-.1-.46-.15-.66.15-.2.3-.76.96-.93 1.16-.17.2-.34.22-.64.07-.3-.15-1.25-.46-2.39-1.47-.88-.79-1.48-1.76-1.65-2.06-.17-.3-.02-.46.13-.61.13-.13.3-.34.45-.51.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.66-1.59-.9-2.18-.24-.57-.48-.49-.66-.5l-.56-.01c-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.49 0 1.47 1.07 2.89 1.22 3.09.15.2 2.1 3.21 5.08 4.5.71.31 1.27.49 1.7.63.71.23 1.36.2 1.87.12.57-.08 1.74-.71 1.99-1.39.25-.69.25-1.27.17-1.39-.07-.13-.27-.2-.57-.35zM12 2C6.48 2 2 6.48 2 12c0 1.74.45 3.41 1.3 4.9L2 22l5.25-1.37A9.93 9.93 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2z"/></svg>' +
-        '<span>WhatsApp</span>' +
+        '<span>Записаться · 10$</span>' +
       '</a>';
     document.body.appendChild(bar);
 
@@ -275,7 +270,64 @@
     onScroll();
   }
 
-  // ---------- 5. Bootstrap ----------
+  // ---------- 6. Hero "10$" price badge ----------
+  // Premium-looking pill placed near the main hero CTA. Idempotent.
+  function buildPriceBadge() {
+    if (document.querySelector('.altyn-price-badge')) return null;
+    var wrap = el('a', {
+      class: 'altyn-price-badge',
+      href: TG,
+      target: '_blank',
+      rel: 'noopener',
+      'data-altyn-cta': 'price-badge-hero',
+      'aria-label': 'Личный диагностический разбор — 10$. 60 минут онлайн. Сумма засчитывается при продолжении работы.'
+    });
+    wrap.innerHTML =
+      '<span class="altyn-price-badge__row">' +
+        '<span class="altyn-price-badge__dot" aria-hidden="true"></span>' +
+        '<span class="altyn-price-badge__title">Личный диагностический разбор</span>' +
+        '<span class="altyn-price-badge__price">10$</span>' +
+      '</span>' +
+      '<span class="altyn-price-badge__note">60 минут онлайн · сумма засчитывается при продолжении работы</span>';
+    return wrap;
+  }
+
+  function findHeroCTA() {
+    // Heuristic: the first prominent CTA <a> on the page that links to TG.
+    // We look inside likely hero containers near the top of the document.
+    var candidates = document.querySelectorAll(
+      'a[href*="t.me/Altyn2304"], a[href*="t.me/altyn"], a[data-altyn-cta]'
+    );
+    for (var i = 0; i < candidates.length; i++) {
+      var a = candidates[i];
+      if (a.closest('.altyn-vt')) continue;            // skip our injected section
+      if (a.closest('.altyn-sticky-cta')) continue;    // skip sticky bar
+      if (a.closest('.altyn-price-badge')) continue;
+      var rect = a.getBoundingClientRect();
+      // Must be in initial viewport ( hero area )
+      if (rect.top >= 0 && rect.top < (window.innerHeight || 800) + 200) {
+        return a;
+      }
+    }
+    return null;
+  }
+
+  var badgePlaced = false;
+  function tryPlaceBadge() {
+    if (badgePlaced) return true;
+    var anchor = findHeroCTA();
+    if (!anchor) return false;
+    var badge = buildPriceBadge();
+    if (!badge) { badgePlaced = true; return true; }
+    // Insert as a sibling right above the CTA so it reads naturally.
+    var parent = anchor.parentNode;
+    if (!parent) return false;
+    parent.insertBefore(badge, anchor);
+    badgePlaced = true;
+    return true;
+  }
+
+
   function init() {
     // Try injecting now and via observer (React renders async).
     var sectionInjected = tryInject();
@@ -289,7 +341,8 @@
         var b = findReactBottomBar();
         if (b) { hideReactBar(); barHidden = true; }
       }
-      if ((sectionInjected && barHidden) || attempts > 60) {
+      if (!badgePlaced) tryPlaceBadge();
+      if ((sectionInjected && barHidden && badgePlaced) || attempts > 60) {
         clearInterval(iv);
         if (mo) mo.disconnect();
       }
