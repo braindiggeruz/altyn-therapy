@@ -95,14 +95,20 @@
 |---|---|---|
 | `LEAD_ATTRIBUTION` | `ALTYN_LEAD_ATTRIBUTION` | `lead:<id>` (30d TTL) + `qualified:<id>` (24h dedupe) |
 
-### Как создать KV в Cloudflare Dashboard
+### Как привязать KV к Cloudflare Pages
 
-1. Workers & Pages → KV → Create a namespace → name: `ALTYN_LEAD_ATTRIBUTION` → Add.
-2. Pages → altyn-therapy → Settings → Functions → **KV namespace bindings** → Add binding:
+**KV namespace УЖЕ создан** (через API):
+* Title: `ALTYN_LEAD_ATTRIBUTION`
+* ID: `0f8fa30a18af4c799029f4df18b8d6d7`
+* Read/write верифицированы.
+
+Что осталось сделать **руками** в Cloudflare Dashboard (~30 секунд):
+
+1. Pages → **altyn-therapy** → Settings → Functions → **KV namespace bindings** → **Add binding**:
    * Variable name: `LEAD_ATTRIBUTION`
-   * KV namespace: `ALTYN_LEAD_ATTRIBUTION`
-   * Сделать для Production И Preview.
-3. Redeploy последний commit (или просто новый deploy подхватит binding).
+   * KV namespace: `ALTYN_LEAD_ATTRIBUTION` (выбрать из списка)
+   * Сделать для **Production** И **Preview**.
+2. После добавления — следующий деплой подхватит binding автоматически. Или нажать **Retry deployment** на последнем деплое.
 
 Если KV не настроен — bridge всё равно работает (Contact/Lead уходят с полным UTM), но QualifiedLead не сможет восстановить UTM по `lead_id`. То есть Meta получит QualifiedLead без UTM — это допустимо, но менее ценно.
 
@@ -199,33 +205,110 @@ curl -X POST https://altyn-therapy.uz/api/meta/qualified-lead \
 
 Если `lead_id` не передан — событие тоже отправится, но без серверного UTM enrichment (только то, что в `custom_data`).
 
-## Тестирование
+## Production readiness — чеклист
 
-### 1. Events Manager → Test Events
-1. Получите `TEST12345` код.
-2. Установите `META_TEST_EVENT_CODE` в Cloudflare (Production+Preview).
-3. Откройте сайт с тестовыми UTM:
-   `https://www.altyn-therapy.uz/?utm_source=facebook&utm_campaign=test&fbclid=ABC123`
-4. Должно прийти: `PageView → ViewContent → LandingQualifiedView (после 8s) → CTA_Click`.
-5. Перейдите по CTA → bridge → `PageView → Contact → TelegramOpenAttempt → Lead`.
-6. Все должны быть deduplicated (Browser + Server).
-7. Тестовый QualifiedLead через curl выше.
-8. **Удалите** `META_TEST_EVENT_CODE` после проверки.
+### Уже сделано автоматически
+- ✅ Pixel один (id `2475663283169925`), guard `window.__ALTYN_PIXEL_INITED__`
+- ✅ Все hardcoded `t.me/Altyn2304` в React-bundle переписываются на `/go/telegram` через MutationObserver в `altyn-pixel.js`
+- ✅ Bridge ведёт на `@altyndirectbot?start=<lead_id>`
+- ✅ `lead_id` сохраняется в KV перед редиректом
+- ✅ Telegram bot можно postить в notify-группу (проверено)
+- ✅ Cloudflare KV namespace `ALTYN_LEAD_ATTRIBUTION` создан (id `0f8fa30a18af4c799029f4df18b8d6d7`)
+- ✅ PR открыт: https://github.com/braindiggeruz/altyn-therapy/pull/1
+- ✅ Secret scan: токены не в репо
 
-### 2. Devices
-Прогнать чек-лист: Android Chrome / Android IG-webview / Android FB-webview / iPhone Safari / iPhone IG-webview / iPhone FB-webview / Desktop Chrome.
+### Ручные шаги (P0)
 
-В IG/FB in-app: auto-deeplink отключен намеренно — пользователь тапает кнопку.
+#### 1. Merge PR + дождаться деплоя
+1. Открыть PR: https://github.com/braindiggeruz/altyn-therapy/pull/1
+2. Squash & merge (или обычный merge — в репе только эти 2 коммита)
+3. Cloudflare Pages автоматически задеплоит. Дождаться (~30–60 сек)
+4. Проверить: `curl -I https://www.altyn-therapy.uz/go/telegram/` → 200, ответ должен быть нашим bridge HTML (не SPA fallback). В body должно быть `Открываем Telegram…` и `altyn-bridge.js`
 
-### 3. Bot integration
-1. Откройте `/go/telegram?utm_source=test`.
-2. Скопируйте lead_id (видно в URL Telegram после редиректа).
-3. Отправьте `/start <lead_id>` боту вручную.
-4. Вызовите curl на `/api/telegram/qualified-intent` с этим `lead_id`.
-5. Проверьте, что:
-   - QualifiedLead появился в Events Manager.
-   - В группу `-1003406252597` пришло уведомление.
-   - Повторный вызов в течение 24 ч возвращает `already_sent: true`.
+#### 2. Привязать KV к Pages project
+Cloudflare Dashboard → Pages → **altyn-therapy** → Settings → Functions → **KV namespace bindings** → **Add binding**:
+* Variable name: `LEAD_ATTRIBUTION`
+* KV namespace: `ALTYN_LEAD_ATTRIBUTION`
+* Production + Preview обе среды
+* Save → Retry deployment / новый deploy
+
+#### 3. Добавить недостающие env vars
+Cloudflare → Pages → altyn-therapy → Settings → Environment variables (Production + Preview):
+
+| Имя | Значение |
+|---|---|
+| `TELEGRAM_BOT_TOKEN` | (ваш токен @altyndirectbot — храните как **Encrypted**) |
+| `TELEGRAM_NOTIFY_CHAT_ID` | `-1003406252597` |
+| `INTENT_SECRET` | сгенерировать 32+ random байт (например `openssl rand -hex 32`) — **Encrypted** |
+| `TELEGRAM_WEBHOOK_SECRET` | сгенерировать random 32+ байт — **Encrypted** (резерв) |
+| `META_TEST_EVENT_CODE` | (только на время тестов, потом удалить) |
+
+#### 4. NextBot → outgoing webhook
+В админке NextBot настроить outgoing webhook / automation:
+* URL: `https://www.altyn-therapy.uz/api/telegram/qualified-intent`
+* Method: POST
+* Header: `x-altyn-intent-secret: <INTENT_SECRET>`
+* Header: `content-type: application/json`
+* Body (template):
+  ```json
+  {
+    "lead_id": "{{message.text после /start или сохранённое из истории}}",
+    "telegram_user_id": "{{user.id}}",
+    "telegram_username": "{{user.username}}",
+    "telegram_first_name": "{{user.first_name}}",
+    "action": "want_diagnostic"
+  }
+  ```
+* Триггеры (любой из):
+  * Нажата inline-кнопка с текстом `Хочу разбор за 10$`
+  * Сообщение пользователя содержит (case-insensitive): `разбор`, `хочу разбор`, `10$`, `сценарий`, `отношения`, `консультация`, `записаться`, `хочу к Алтын`, `как записаться`
+* НЕ вызывать на `/start` без явного intent.
+
+Если NextBot не поддерживает outgoing webhook — оставить QualifiedLead manual-only (через `/api/meta/qualified-lead` с `x-altyn-admin-secret`). Меня можно вернуть к этому в любой момент.
+
+#### 5. Meta Events Manager: Test Events
+1. Открыть Events Manager → Test Events → скопировать test code (формат `TEST12345`)
+2. Задать `META_TEST_EVENT_CODE` в Cloudflare (Production+Preview) → wait redeploy
+3. Открыть в браузере с тест-UTM:
+   `https://www.altyn-therapy.uz/?utm_source=facebook&utm_campaign=ladder_test&utm_content=adset_x&utm_term=creative_y&fbclid=TEST_FBCLID_123`
+4. Ожидаемая лестница:
+   * Landing: `PageView → ViewContent → LandingQualifiedView` (через 8 c) → клик CTA → `CTA_Click`
+   * Bridge: `PageView → Contact → TelegramOpenAttempt → Lead`
+   * Клик «Скопировать фразу»: `CopyLeadPhrase`
+   * После /start в боте → NextBot trigger → `QualifiedLead`
+5. Все Contact/Lead должны быть в Test Events с пометкой `Browser + Server (Deduplicated)`
+6. **Удалить `META_TEST_EVENT_CODE`** из Cloudflare после успешной проверки
+
+#### 6. Создать недостающие Custom Conversions в Events Manager
+(уже создана **Telegram Lead - Go Telegram** — это №2)
+
+| # | Имя | Event | Filter | Category |
+|---|---|---|---|---|
+| 1 | Telegram Contact | `Contact` | URL contains `/go/telegram` | Contact |
+| 2 | ✅ Telegram Lead — есть | `Lead` | URL contains `/go/telegram` | Lead |
+| 3 | Qualified Telegram Lead | `QualifiedLead` | (без URL фильтра) | Lead |
+| 4 | Copy Phrase Intent | `CopyLeadPhrase` | (без URL фильтра) | Contact |
+
+#### 7. Ads Manager — текущий optimization event
+* Сейчас → **Telegram Lead - Go Telegram** (уже активна)
+* Когда накопится 15–30 QualifiedLead/неделю → переключить на **Qualified Telegram Lead**
+* НЕ оптимизироваться на PageView/ViewContent/CTR.
+
+#### 8. Devices smoke-test (ручной)
+После merge + KV binding пройти:
+* Android Chrome — клик CTA, попасть на bridge, дойти до бота, `/start <lead_id>` виден
+* Android Instagram in-app — кнопка «Открыть Telegram» работает; deeplink требует тапа
+* Android Facebook in-app — то же
+* iPhone Safari — auto-deeplink работает
+* iPhone Instagram in-app — тап на кнопку
+* iPhone Facebook in-app — тап на кнопку
+* Desktop Chrome — открывается web.telegram.org
+
+#### 9. Security cleanup (после успешного теста)
+- Ротировать TELEGRAM_BOT_TOKEN через @BotFather (`/token` → выбрать @altyndirectbot → `/revoke`) и обновить в Cloudflare
+- Ротировать Cloudflare API token (Profile → API Tokens → Roll)
+- Отозвать GitHub PAT (если ещё не сделано)
+- Удалить `META_TEST_EVENT_CODE` из Cloudflare
 
 ## Запреты, которых код придерживается
 
