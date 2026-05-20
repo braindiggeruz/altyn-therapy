@@ -7,6 +7,10 @@
 # Custom enhancement scripts — short cache so updates roll out fast.
 /assets/altyn-pixel.js
   Cache-Control: public, max-age=3600, must-revalidate
+/assets/altyn-utm.js
+  Cache-Control: public, max-age=3600, must-revalidate
+/assets/altyn-bridge.js
+  Cache-Control: public, max-age=3600, must-revalidate
 /assets/altyn-enhance.js
   Cache-Control: public, max-age=3600, must-revalidate
 /assets/altyn-enhance.css
@@ -26,3 +30,16 @@
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: geolocation=(), microphone=(), camera=()
+
+# Bridge page — do NOT index/follow. Cache short so changes roll out fast.
+/go/telegram
+  X-Robots-Tag: noindex, nofollow
+  Cache-Control: public, max-age=300, must-revalidate
+/go/telegram/
+  X-Robots-Tag: noindex, nofollow
+  Cache-Control: public, max-age=300, must-revalidate
+
+# CAPI endpoints — never cache
+/api/meta/*
+  Cache-Control: no-store
+  X-Robots-Tag: noindex, nofollow

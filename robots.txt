@@ -3,6 +3,7 @@ Allow: /
 
 Sitemap: https://altyn-therapy.uz/sitemap.xml
 
-# Block admin and API paths
+# Block admin, API and bridge paths
 Disallow: /api/
 Disallow: /__manus__/
+Disallow: /go/

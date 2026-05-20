@@ -82,8 +82,11 @@
     <!-- ===== META PIXEL =====
          Pixel ID is set here so it can be swapped without touching the JS bundle.
          To rotate the Pixel, change the value below (or replace with your env-var
-         build step output). Loaded via /assets/altyn-pixel.js (defer). -->
+         build step output). Loaded via /assets/altyn-pixel.js (defer).
+         altyn-utm.js MUST load FIRST so attribution (UTM/fbclid/_fbp/_fbc)
+         is captured before any pixel event fires. -->
     <script>window.__META_PIXEL_ID__ = '2475663283169925';</script>
+    <script src="/assets/altyn-utm.js" defer></script>
     <script src="/assets/altyn-pixel.js" defer></script>
     <noscript><img height="1" width="1" style="display:none"
       src="https://www.facebook.com/tr?id=2475663283169925&ev=PageView&noscript=1"

@@ -8,8 +8,10 @@
   'use strict';
 
   // ---------- Configuration ----------
-  var TG = 'https://t.me/Altyn2304';
-  // All CTAs now route to the same Telegram contact.
+  // All CTAs route to the /go/telegram bridge — that page handles UTM/fbclid
+  // capture and fires the real Lead/Contact events (browser + CAPI).
+  var TG = '/go/telegram';
+  // All CTAs now route to the same Telegram contact via the bridge.
   var WA = TG;
 
   // 7 testimonials (videos already optimised to ~540×960 H.264 + AAC).

@@ -1,23 +1,27 @@
 /* =====================================================================
    Altyn Therapy — Meta Pixel + Conversion Tracking
    ---------------------------------------------------------------------
-   Loads Meta Pixel, fires PageView/ViewContent automatically,
-   and uses event delegation to track clicks on every relevant CTA
-   (Telegram, WhatsApp, Instagram, phone, "Записаться", quiz, etc.).
-   No assumptions about React internals — works on any rendered DOM.
+   - Loads Meta Pixel ONCE (single Pixel ID, no duplicates).
+   - Fires PageView + ViewContent (landing) automatically.
+   - On the landing: rewrites every Telegram CTA to go through the
+     /go/telegram bridge (UTM/fbclid preserved) and fires CTA_Click
+     INSTEAD of Lead — the real Lead fires on the bridge.
+   - Fires LandingQualifiedView when the visitor spends >= 8s OR
+     scrolls >= 35% of the landing.
+   - Tracks tel: / wa.me / instagram.com clicks as Contact (unchanged).
+   - Shares event_ids with the server CAPI proxy for browser↔server
+     deduplication.
    ===================================================================== */
 (function () {
   'use strict';
 
-  // Pixel ID is read from window.__META_PIXEL_ID__ (set via inline script
-  // in index.html) so it can be swapped without redeploying this file.
   var PIXEL_ID = (typeof window !== 'undefined' && window.__META_PIXEL_ID__) || '';
   if (!PIXEL_ID) {
     console.warn('[altyn-pixel] Pixel ID not configured — tracking disabled.');
     return;
   }
 
-  // ---------- 1. Standard Meta Pixel bootstrap ---------------------------
+  // ---------- 1. Standard Meta Pixel bootstrap (single-init guard) ------
   (function (f, b, e, v, n, t, s) {
     if (f.fbq) return;
     n = f.fbq = function () {
@@ -31,35 +35,207 @@
     s.parentNode.insertBefore(t, s);
   })(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
 
-  window.fbq('init', PIXEL_ID);
+  if (!window.__ALTYN_PIXEL_INITED__) {
+    window.fbq('init', PIXEL_ID);
+    window.__ALTYN_PIXEL_INITED__ = true;
+  }
   window.fbq('track', 'PageView');
 
-  // After hero settles, send ViewContent so we know the visitor
-  // actually engaged with the landing experience.
-  setTimeout(function () {
-    try {
-      window.fbq('track', 'ViewContent', {
-        content_name: 'Altyn Therapy Landing',
-        content_category: 'hypnotherapy_landing',
-        content_type: 'product_page'
-      });
-    } catch (e) { /* noop */ }
-  }, 1500);
+  // ---------- 2. Helpers ------------------------------------------------
+  var IS_BRIDGE = /\/go\/telegram\/?/.test(window.location.pathname);
+  var CAPI_ENDPOINT = '/api/meta/capi';
+  var STANDARD_EVENTS = { PageView:1, ViewContent:1, Lead:1, Contact:1, CompleteRegistration:1, Search:1, AddToCart:1, Purchase:1, InitiateCheckout:1, AddPaymentInfo:1, Subscribe:1 };
 
-  // ---------- 2. Public tracking helper ----------------------------------
-  // Use window.altynTrack(eventName, params) anywhere in the app.
-  function trackEvent(eventName, params) {
+  function getUTMSnapshot() {
+    try { return (window.altynUTM && window.altynUTM.get()) || {}; }
+    catch (e) { return {}; }
+  }
+  function eventIdFor(key) {
+    try { return window.altynUTM.getEventId(key); }
+    catch (e) { return 'altyn_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10); }
+  }
+  function utmParams() {
+    var u = getUTMSnapshot();
+    var out = {};
+    ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','fbclid','traffic_source'].forEach(function (k) {
+      if (u[k]) out[k] = u[k];
+    });
+    return out;
+  }
+
+  function fbqFire(eventName, params, opts) {
     try {
-      if (typeof window.fbq !== 'function') return;
-      window.fbq('track', eventName, params || {});
-      if (window.__ALTYN_DEBUG_PIXEL__) {
-        console.log('[altyn-pixel]', eventName, params || {});
+      var method = STANDARD_EVENTS[eventName] ? 'track' : 'trackCustom';
+      if (opts && opts.eventID) {
+        window.fbq(method, eventName, params || {}, { eventID: opts.eventID });
+      } else {
+        window.fbq(method, eventName, params || {});
+      }
+    } catch (e) { /* noop */ }
+    if (window.__ALTYN_DEBUG_PIXEL__) {
+      try { console.log('[altyn-pixel]', eventName, params || {}, opts || {}); } catch (e) {}
+    }
+  }
+
+  function postCAPI(payload) {
+    try {
+      var body = JSON.stringify(payload);
+      // fetch+keepalive: survives navigation (deep-link), and Playwright /
+      // service workers can intercept it for testing.
+      if (typeof fetch === 'function') {
+        fetch(CAPI_ENDPOINT, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: body,
+          keepalive: true,
+          credentials: 'omit',
+          mode: 'same-origin'
+        }).catch(function () { /* swallow */ });
+        return;
+      }
+      if (navigator.sendBeacon) {
+        var blob = new Blob([body], { type: 'application/json' });
+        navigator.sendBeacon(CAPI_ENDPOINT, blob);
       }
     } catch (e) { /* noop */ }
   }
-  window.altynTrack = trackEvent;
 
-  // ---------- 3. Click classification ------------------------------------
+  /**
+   * Unified tracker: fires browser pixel + (optionally) server CAPI
+   * with the same event_id.
+   *  - eventName: Meta event name (standard or custom)
+   *  - eventKey:  semantic key used to dedupe via altynUTM.getEventId()
+   *  - params:    custom_data sent to both channels
+   *  - opts.serverSkip = true → only fire browser pixel
+   */
+  function trackEvent(eventName, eventKey, params, opts) {
+    opts = opts || {};
+    var p, eventId;
+    try {
+      p = Object.assign({}, utmParams(), params || {});
+      eventId = eventKey ? eventIdFor(eventKey) : ('altyn_' + Date.now());
+    } catch (e) {
+      p = params || {};
+      eventId = 'altyn_fallback_' + Date.now();
+    }
+
+    try { fbqFire(eventName, p, { eventID: eventId }); } catch (e) { /* noop */ }
+
+    var serverable = { Contact:1, Lead:1, TelegramOpenAttempt:1, CopyLeadPhrase:1, LandingQualifiedView:1, CTA_Click:1, ViewContent:1 };
+    if (!opts.serverSkip && serverable[eventName]) {
+      try {
+        var u = getUTMSnapshot();
+        postCAPI({
+          event_name: eventName,
+          event_id: eventId,
+          event_time: Math.floor(Date.now() / 1000),
+          event_source_url: window.location.href,
+          action_source: 'website',
+          fbp: u._fbp || null,
+          fbc: u._fbc || null,
+          custom_data: p
+        });
+      } catch (e) { /* noop */ }
+    }
+    return eventId;
+  }
+
+  // Back-compat shim — keep window.altynTrack working for callers in
+  // altyn-enhance.js. Old signature: altynTrack(eventName, params).
+  window.altynTrack = function (eventName, params) {
+    return trackEvent(eventName, null, params || {});
+  };
+  window.altynTrackV2 = trackEvent;
+
+  // ---------- 3. ViewContent (landing only) -----------------------------
+  if (!IS_BRIDGE) {
+    setTimeout(function () {
+      trackEvent('ViewContent', 'landing_viewcontent', {
+        content_name: 'altyn_relationship_scenario_landing',
+        content_category: 'hypnotherapy_diagnostic',
+        content_type: 'product_page',
+        offer_name: 'scenario_diagnostic_10usd',
+        value: 10,
+        currency: 'USD'
+      });
+    }, 1500);
+  }
+
+  // ---------- 4. Rewrite Telegram links → /go/telegram (landing only) ---
+  function buildBridgeUrl() {
+    var u = getUTMSnapshot();
+    var qs = [];
+    ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','fbclid'].forEach(function (k) {
+      if (u[k]) qs.push(encodeURIComponent(k) + '=' + encodeURIComponent(u[k]));
+    });
+    return '/go/telegram' + (qs.length ? ('?' + qs.join('&')) : '');
+  }
+
+  function rewriteTelegramAnchors(root) {
+    if (IS_BRIDGE) return;
+    var scope = root || document;
+    var anchors = scope.querySelectorAll('a[href*="t.me/Altyn2304"], a[href*="t.me/altyn2304" i], a[href*="telegram.me/Altyn2304" i]');
+    for (var i = 0; i < anchors.length; i++) {
+      var a = anchors[i];
+      if (a.dataset.altynBridged === '1') continue;
+      a.dataset.altynBridged = '1';
+      a.dataset.altynOriginalHref = a.getAttribute('href') || '';
+      a.setAttribute('href', buildBridgeUrl());
+      // bridge page handles target itself; we keep current target to not break UX
+      var relAttr = (a.getAttribute('rel') || '').trim();
+      if (relAttr.indexOf('noopener') === -1) {
+        a.setAttribute('rel', (relAttr ? relAttr + ' ' : '') + 'noopener');
+      }
+    }
+  }
+
+  // Re-rewrite when SPA mutates the DOM (the React app is hydrated client-side).
+  if (!IS_BRIDGE) {
+    rewriteTelegramAnchors(document);
+    try {
+      var mo = new MutationObserver(function (mutations) {
+        for (var i = 0; i < mutations.length; i++) {
+          var m = mutations[i];
+          if (m.addedNodes && m.addedNodes.length) {
+            for (var j = 0; j < m.addedNodes.length; j++) {
+              var node = m.addedNodes[j];
+              if (node.nodeType === 1) rewriteTelegramAnchors(node);
+            }
+          }
+        }
+      });
+      mo.observe(document.documentElement, { childList: true, subtree: true });
+      window.__altynPixelMO__ = mo;
+    } catch (e) { /* older browsers */ }
+  }
+
+  // ---------- 5. Click classification (landing) -------------------------
+  function nearestSectionLabel(el) {
+    var section = el.closest && (el.closest('section') || el.closest('[data-section]'));
+    if (!section) return 'unknown';
+    var h = section.querySelector('h1, h2, h3');
+    return h ? (h.innerText || '').slice(0, 40).trim().toLowerCase() : 'unknown';
+  }
+
+  function ctaLocationFromEl(el, sectionLabel) {
+    var cls = (el.className || '').toString().toLowerCase();
+    if (el.closest('.altyn-sticky-cta')) return 'sticky';
+    if (el.closest('.altyn-price-badge')) return 'price_badge';
+    if (el.closest('.altyn-vt-modal')) return 'video_modal';
+    if (el.closest('.altyn-vt')) return 'testimonials';
+    if (/sticky/.test(cls)) return 'sticky';
+    if (/hero/.test(cls)) return 'hero';
+    if (/footer/.test(cls)) return 'footer';
+    var s = sectionLabel || '';
+    if (/тариф|цен|стоим|10\$|price/.test(s)) return 'price_block';
+    if (/отзыв|истории|видео/.test(s)) return 'testimonials';
+    if (/вопрос|faq/.test(s)) return 'faq';
+    if (/футер|подвал|контакт/.test(s)) return 'footer';
+    if (/о себе|обо мне|кто я|алтын/.test(s)) return 'about';
+    if (/процесс|как мы|как проходит/.test(s)) return 'process';
+    return s ? s.slice(0, 24) : 'unknown';
+  }
+
   function classifyClick(target) {
     if (!target) return null;
     var anchor = target.closest ? target.closest('a') : null;
@@ -67,108 +243,149 @@
     var el = anchor || btn;
     if (!el) return null;
 
-    var href = (anchor && anchor.href ? anchor.href : '').toLowerCase();
+    var hrefRaw = (anchor && anchor.href ? anchor.href : '') || '';
+    var href = hrefRaw.toLowerCase();
+    var bridgedTo = (anchor && anchor.dataset && anchor.dataset.altynOriginalHref) || '';
     var text = ((el.innerText || el.textContent || '') + ' ' + (el.getAttribute('aria-label') || '')).trim();
     var textLower = text.toLowerCase();
-
-    // CTA location heuristic — find nearest section
-    var section = el.closest('section') || el.closest('[data-section]') || null;
-    var sectionLabel = 'unknown';
-    if (section) {
-      var heading = section.querySelector('h1, h2, h3');
-      if (heading) sectionLabel = (heading.innerText || '').slice(0, 40).trim();
-    }
+    var section = nearestSectionLabel(el);
+    var loc = ctaLocationFromEl(el, section);
 
     var base = {
-      cta_location: sectionLabel,
-      button_text: text.slice(0, 80),
-      source: 'website'
+      cta_location: loc,
+      cta_text: text.slice(0, 80)
     };
 
-    // 1) Phone
-    if (href.indexOf('tel:') === 0) {
-      return { event: 'Contact', params: Object.assign({ content_name: 'phone_call', content_category: 'contact' }, base) };
-    }
-    // 2) Telegram bot — primary conversion path
-    if (href.indexOf('t.me/') !== -1 || href.indexOf('telegram.me/') !== -1) {
-      // Bot link is THE conversion. Track as Lead AND Contact for both audiences.
+    // Telegram CTA — track as CTA_Click only (real Lead happens on bridge)
+    if (
+      href.indexOf('/go/telegram') !== -1 ||
+      /t\.me\/altyn2304/i.test(bridgedTo) ||
+      /t\.me\/|telegram\.me\//i.test(href)
+    ) {
       return {
-        event: 'Lead',
+        event: 'CTA_Click',
         params: Object.assign({
-          content_name: 'telegram_consultation',
-          content_category: 'free_consultation',
-          channel: 'telegram'
-        }, base),
-        secondary: {
-          event: 'Contact',
-          params: Object.assign({ content_name: 'telegram', content_category: 'contact' }, base)
-        }
+          destination: '/go/telegram',
+          contact_channel: 'telegram',
+          offer_name: 'scenario_diagnostic_10usd',
+          value: 10,
+          currency: 'USD'
+        }, base)
       };
     }
-    // 3) WhatsApp
+    // Phone
+    if (href.indexOf('tel:') === 0) {
+      return {
+        event: 'Contact',
+        params: Object.assign({
+          content_name: 'phone_call',
+          content_category: 'contact',
+          contact_channel: 'phone'
+        }, base)
+      };
+    }
+    // WhatsApp
     if (href.indexOf('wa.me/') !== -1 || href.indexOf('whatsapp.com') !== -1) {
       return {
-        event: 'Lead',
+        event: 'Contact',
         params: Object.assign({
-          content_name: 'whatsapp_consultation',
-          content_category: 'free_consultation',
-          channel: 'whatsapp'
-        }, base),
-        secondary: {
-          event: 'Contact',
-          params: Object.assign({ content_name: 'whatsapp', content_category: 'contact' }, base)
-        }
+          content_name: 'whatsapp',
+          content_category: 'contact',
+          contact_channel: 'whatsapp'
+        }, base)
       };
     }
-    // 4) Instagram
+    // Instagram
     if (href.indexOf('instagram.com') !== -1 || href.indexOf('ig.me') !== -1) {
-      return { event: 'Contact', params: Object.assign({ content_name: 'instagram_direct', content_category: 'contact', channel: 'instagram' }, base) };
+      return {
+        event: 'Contact',
+        params: Object.assign({
+          content_name: 'instagram_direct',
+          content_category: 'contact',
+          contact_channel: 'instagram'
+        }, base)
+      };
     }
-
-    // 5) Text-based CTA detection (for buttons that don't navigate to an external URL yet)
-    var leadKeywords = ['записаться', 'записаться на', 'бесплатн', 'разбор', 'консультац', 'квиз', 'пройти квиз', 'узнать свой сценарий', 'хочу так же'];
+    // Text-based CTA (no external nav yet, but clearly lead-intent text)
+    var leadKeywords = ['записаться', 'хочу разбор', 'разбор за', 'разбор сценария', 'консультац'];
     for (var i = 0; i < leadKeywords.length; i++) {
       if (textLower.indexOf(leadKeywords[i]) !== -1) {
         return {
-          event: 'Lead',
+          event: 'CTA_Click',
           params: Object.assign({
-            content_name: 'cta_click',
-            content_category: 'free_consultation',
-            channel: 'website'
+            destination: '/go/telegram',
+            offer_name: 'scenario_diagnostic_10usd',
+            value: 10,
+            currency: 'USD'
           }, base)
         };
       }
     }
-
     return null;
   }
 
-  // ---------- 4. Global click delegation ---------------------------------
-  // De-duplicate rapid double-fires from the same element.
+  // ---------- 6. Click delegation with rate-limit dedup -----------------
   var lastFire = { ts: 0, key: '' };
-
   function handleClick(e) {
-    var classification = classifyClick(e.target);
-    if (!classification) return;
-
-    var key = classification.event + '|' + (classification.params.button_text || '') + '|' + (classification.params.cta_location || '');
+    if (IS_BRIDGE) return; // bridge has its own logic
+    var c = classifyClick(e.target);
+    if (!c) return;
+    var key = c.event + '|' + (c.params.cta_text || '') + '|' + (c.params.cta_location || '');
     var now = Date.now();
     if (lastFire.key === key && now - lastFire.ts < 800) return;
     lastFire = { ts: now, key: key };
-
-    trackEvent(classification.event, classification.params);
-    if (classification.secondary) {
-      trackEvent(classification.secondary.event, classification.secondary.params);
-    }
+    // Each click has a unique eventKey to avoid CAPI dedup-collapsing distinct clicks
+    var ekey = 'click_' + key + '_' + now;
+    trackEvent(c.event, ekey, c.params);
   }
-
-  // Capture phase so we fire even when React stops propagation.
   document.addEventListener('click', handleClick, true);
 
-  // ---------- 5. Expose minimal debug surface ----------------------------
+  // ---------- 7. LandingQualifiedView (8s OR 35% scroll) ---------------
+  if (!IS_BRIDGE) {
+    var qualifiedSent = false;
+    var startTs = Date.now();
+    function maybeQualify(reason, depthPct) {
+      if (qualifiedSent) return;
+      qualifiedSent = true;
+      var seconds = Math.round((Date.now() - startTs) / 1000);
+      trackEvent('LandingQualifiedView', 'landing_qualified_view', {
+        content_name: 'qualified_landing_view',
+        content_category: 'hypnotherapy_diagnostic',
+        offer_name: 'scenario_diagnostic_10usd',
+        value: 10,
+        currency: 'USD',
+        seconds_on_page: seconds,
+        scroll_depth: typeof depthPct === 'number' ? Math.round(depthPct) : 0
+      });
+    }
+
+    setTimeout(function () { maybeQualify('time'); }, 8000);
+
+    function scrollDepthPct() {
+      var doc = document.documentElement;
+      var body = document.body;
+      var scrollTop = window.pageYOffset || doc.scrollTop || body.scrollTop || 0;
+      var viewport = window.innerHeight || doc.clientHeight || 0;
+      var full = Math.max(doc.scrollHeight, body.scrollHeight, doc.offsetHeight, body.offsetHeight) || 1;
+      if (full <= viewport) return 100;
+      return ((scrollTop + viewport) / full) * 100;
+    }
+    function onScroll() {
+      if (qualifiedSent) {
+        window.removeEventListener('scroll', onScroll);
+        return;
+      }
+      var pct = scrollDepthPct();
+      if (pct >= 35) maybeQualify('scroll', pct);
+    }
+    window.addEventListener('scroll', onScroll, { passive: true });
+  }
+
+  // ---------- 8. Debug surface ------------------------------------------
   window.altynPixel = {
     id: PIXEL_ID,
     track: trackEvent,
-    classify: classifyClick
+    classify: classifyClick,
+    isBridge: IS_BRIDGE
   };
 })();

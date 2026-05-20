@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="googlebot" content="noindex, nofollow" />
+  <meta http-equiv="x-robots-tag" content="noindex, nofollow" />
+  <title>Открываем Telegram… · Altyn Therapy</title>
+  <meta name="description" content="Открываем чат с Алтын в Telegram." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="theme-color" content="#6B2D3E" />
+  <link rel="dns-prefetch" href="https://t.me" />
+  <link rel="dns-prefetch" href="https://connect.facebook.net" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Raleway:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg-1:#2A1218;
+      --bg-2:#4A1F2B;
+      --bg-3:#6B2D3E;
+      --gold:#c9a96e;
+      --gold-2:#e9c98a;
+      --ink:#fdf6ec;
+      --ink-dim:rgba(253,246,236,0.72);
+      --card:rgba(253,246,236,0.06);
+      --card-bd:rgba(253,246,236,0.14);
+      --tg:#229ED9;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;min-height:100%}
+    body{
+      font-family:'Raleway',system-ui,-apple-system,'Segoe UI',sans-serif;
+      color:var(--ink);
+      background:
+        radial-gradient(120% 80% at 50% -10%, rgba(201,169,110,0.18) 0%, transparent 60%),
+        linear-gradient(180deg, var(--bg-1) 0%, var(--bg-2) 55%, var(--bg-3) 100%);
+      -webkit-font-smoothing:antialiased;
+      text-rendering:optimizeLegibility;
+      overflow-x:hidden;
+    }
+    .wrap{
+      min-height:100dvh;
+      display:flex;
+      flex-direction:column;
+      align-items:stretch;
+      justify-content:center;
+      padding:32px 22px 40px;
+      max-width:560px;
+      margin:0 auto;
+    }
+    .brand{
+      letter-spacing:0.32em;
+      font-size:11px;
+      text-transform:uppercase;
+      color:var(--gold);
+      font-weight:600;
+      margin-bottom:18px;
+      opacity:0.85;
+    }
+    h1{
+      font-family:'Playfair Display',Georgia,serif;
+      font-weight:600;
+      font-size:clamp(28px, 7vw, 38px);
+      line-height:1.12;
+      margin:0 0 14px;
+      color:var(--ink);
+    }
+    h1 em{
+      font-style:italic;
+      color:var(--gold-2);
+      font-weight:500;
+    }
+    .sub{
+      font-size:16px;
+      line-height:1.55;
+      color:var(--ink-dim);
+      margin:0 0 28px;
+    }
+    .phrase-card{
+      background:var(--card);
+      border:1px solid var(--card-bd);
+      border-radius:18px;
+      padding:18px 18px;
+      margin:0 0 22px;
+      backdrop-filter:blur(8px);
+      -webkit-backdrop-filter:blur(8px);
+    }
+    .phrase-label{
+      font-size:11px;
+      letter-spacing:0.18em;
+      text-transform:uppercase;
+      color:var(--gold);
+      opacity:0.85;
+      margin-bottom:8px;
+    }
+    .phrase-text{
+      font-family:'Playfair Display',Georgia,serif;
+      font-style:italic;
+      font-size:19px;
+      line-height:1.35;
+      color:var(--ink);
+    }
+    .actions{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      margin-bottom:18px;
+    }
+    .btn{
+      appearance:none;
+      border:0;
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+      padding:16px 22px;
+      border-radius:999px;
+      font-family:inherit;
+      font-weight:600;
+      font-size:16px;
+      letter-spacing:0.01em;
+      text-decoration:none;
+      transition:transform 160ms ease, box-shadow 200ms ease, background 200ms ease;
+      will-change:transform;
+    }
+    .btn:active{transform:translateY(1px) scale(0.99)}
+    .btn-primary{
+      background:linear-gradient(135deg, #2AABEE 0%, var(--tg) 100%);
+      color:#fff;
+      box-shadow:0 10px 28px rgba(34,158,217,0.35), inset 0 1px 0 rgba(255,255,255,0.2);
+    }
+    .btn-primary:hover{box-shadow:0 14px 34px rgba(34,158,217,0.5)}
+    .btn-primary svg{flex:0 0 auto}
+    .btn-secondary{
+      background:transparent;
+      color:var(--gold-2);
+      border:1px solid rgba(201,169,110,0.45);
+    }
+    .btn-secondary:hover{background:rgba(201,169,110,0.08)}
+    .btn-secondary.copied{
+      color:#7be07b;
+      border-color:rgba(123,224,123,0.45);
+      background:rgba(123,224,123,0.06);
+    }
+    .trust{
+      font-size:13px;
+      letter-spacing:0.02em;
+      color:var(--ink-dim);
+      text-align:center;
+      margin-top:6px;
+    }
+    .hint{
+      margin-top:22px;
+      padding:14px 16px;
+      border-radius:14px;
+      background:rgba(253,246,236,0.04);
+      border:1px solid rgba(253,246,236,0.08);
+      font-size:13px;
+      line-height:1.5;
+      color:var(--ink-dim);
+    }
+    .spinner{
+      width:18px;height:18px;border-radius:50%;
+      border:2px solid rgba(255,255,255,0.3);
+      border-top-color:#fff;
+      animation:spin 0.9s linear infinite;
+      display:inline-block;
+      vertical-align:middle;
+      margin-right:8px;
+    }
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .footer{
+      margin-top:30px;
+      text-align:center;
+      font-size:11px;
+      letter-spacing:0.18em;
+      text-transform:uppercase;
+      color:rgba(253,246,236,0.4);
+    }
+    @media (min-width: 720px){
+      .wrap{padding:56px 24px;}
+      .actions{flex-direction:row}
+      .btn{flex:1}
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap" role="main">
+    <div class="brand">Altyn Therapy</div>
+    <h1><span class="spinner" aria-hidden="true"></span>Открываем <em>Telegram</em>…</h1>
+    <p class="sub">Через секунду откроется чат с&nbsp;Алтын. Чтобы получить личный диагностический разбор за&nbsp;10$&nbsp;— просто отправьте фразу ниже.</p>
+
+    <div class="phrase-card" data-testid="phrase-card">
+      <div class="phrase-label">Напишите Алтын</div>
+      <div class="phrase-text" id="phrase">«Хочу разбор сценария за 10$»</div>
+    </div>
+
+    <div class="actions">
+      <a id="open-tg" class="btn btn-primary" data-testid="open-telegram-btn"
+         href="https://t.me/Altyn2304" rel="noopener" target="_blank">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
+        <span>Открыть Telegram</span>
+      </a>
+      <button id="copy-phrase" type="button" class="btn btn-secondary" data-testid="copy-phrase-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+        <span id="copy-label">Скопировать фразу</span>
+      </button>
+    </div>
+
+    <p class="trust">60 минут онлайн&nbsp;· бережно&nbsp;· конфиденциально</p>
+
+    <div class="hint" data-testid="manual-hint">
+      Если Telegram не открылся автоматически&nbsp;— нажмите кнопку «Открыть Telegram» выше. В&nbsp;Instagram/Facebook-браузере иногда нужно один тап вручную.
+    </div>
+
+    <div class="footer">altyn-therapy.uz</div>
+  </main>
+
+  <!-- ===== Pixel + UTM + bridge logic ===== -->
+  <script>window.__META_PIXEL_ID__ = '2475663283169925';</script>
+  <script src="/assets/altyn-utm.js"></script>
+  <script src="/assets/altyn-pixel.js"></script>
+  <script src="/assets/altyn-bridge.js"></script>
+</body>
+</html>
