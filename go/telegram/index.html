@@ -41,151 +41,28 @@
       text-rendering:optimizeLegibility;
       overflow-x:hidden;
     }
-    .wrap{
-      min-height:100dvh;
-      display:flex;
-      flex-direction:column;
-      align-items:stretch;
-      justify-content:center;
-      padding:32px 22px 40px;
-      max-width:560px;
-      margin:0 auto;
-    }
-    .brand{
-      letter-spacing:0.32em;
-      font-size:11px;
-      text-transform:uppercase;
-      color:var(--gold);
-      font-weight:600;
-      margin-bottom:18px;
-      opacity:0.85;
-    }
-    h1{
-      font-family:'Playfair Display',Georgia,serif;
-      font-weight:600;
-      font-size:clamp(28px, 7vw, 38px);
-      line-height:1.12;
-      margin:0 0 14px;
-      color:var(--ink);
-    }
-    h1 em{
-      font-style:italic;
-      color:var(--gold-2);
-      font-weight:500;
-    }
-    .sub{
-      font-size:16px;
-      line-height:1.55;
-      color:var(--ink-dim);
-      margin:0 0 28px;
-    }
-    .phrase-card{
-      background:var(--card);
-      border:1px solid var(--card-bd);
-      border-radius:18px;
-      padding:18px 18px;
-      margin:0 0 22px;
-      backdrop-filter:blur(8px);
-      -webkit-backdrop-filter:blur(8px);
-    }
-    .phrase-label{
-      font-size:11px;
-      letter-spacing:0.18em;
-      text-transform:uppercase;
-      color:var(--gold);
-      opacity:0.85;
-      margin-bottom:8px;
-    }
-    .phrase-text{
-      font-family:'Playfair Display',Georgia,serif;
-      font-style:italic;
-      font-size:19px;
-      line-height:1.35;
-      color:var(--ink);
-    }
-    .actions{
-      display:flex;
-      flex-direction:column;
-      gap:12px;
-      margin-bottom:18px;
-    }
-    .btn{
-      appearance:none;
-      border:0;
-      cursor:pointer;
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      gap:10px;
-      padding:16px 22px;
-      border-radius:999px;
-      font-family:inherit;
-      font-weight:600;
-      font-size:16px;
-      letter-spacing:0.01em;
-      text-decoration:none;
-      transition:transform 160ms ease, box-shadow 200ms ease, background 200ms ease;
-      will-change:transform;
-    }
+    .wrap{min-height:100dvh;display:flex;flex-direction:column;align-items:stretch;justify-content:center;padding:32px 22px 40px;max-width:560px;margin:0 auto;}
+    .brand{letter-spacing:0.32em;font-size:11px;text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:18px;opacity:0.85;}
+    h1{font-family:'Playfair Display',Georgia,serif;font-weight:600;font-size:clamp(28px, 7vw, 38px);line-height:1.12;margin:0 0 14px;color:var(--ink);}
+    h1 em{font-style:italic;color:var(--gold-2);font-weight:500;}
+    .sub{font-size:16px;line-height:1.55;color:var(--ink-dim);margin:0 0 28px;}
+    .phrase-card{background:var(--card);border:1px solid var(--card-bd);border-radius:18px;padding:18px 18px;margin:0 0 22px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+    .phrase-label{font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--gold);opacity:0.85;margin-bottom:8px;}
+    .phrase-text{font-family:'Playfair Display',Georgia,serif;font-style:italic;font-size:19px;line-height:1.35;color:var(--ink);}
+    .actions{display:flex;flex-direction:column;gap:12px;margin-bottom:18px;}
+    .btn{appearance:none;border:0;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:16px 22px;border-radius:999px;font-family:inherit;font-weight:600;font-size:16px;letter-spacing:0.01em;text-decoration:none;transition:transform 160ms ease, box-shadow 200ms ease, background 200ms ease;will-change:transform;}
     .btn:active{transform:translateY(1px) scale(0.99)}
-    .btn-primary{
-      background:linear-gradient(135deg, #2AABEE 0%, var(--tg) 100%);
-      color:#fff;
-      box-shadow:0 10px 28px rgba(34,158,217,0.35), inset 0 1px 0 rgba(255,255,255,0.2);
-    }
+    .btn-primary{background:linear-gradient(135deg, #2AABEE 0%, var(--tg) 100%);color:#fff;box-shadow:0 10px 28px rgba(34,158,217,0.35), inset 0 1px 0 rgba(255,255,255,0.2);}
     .btn-primary:hover{box-shadow:0 14px 34px rgba(34,158,217,0.5)}
-    .btn-primary svg{flex:0 0 auto}
-    .btn-secondary{
-      background:transparent;
-      color:var(--gold-2);
-      border:1px solid rgba(201,169,110,0.45);
-    }
+    .btn-secondary{background:transparent;color:var(--gold-2);border:1px solid rgba(201,169,110,0.45);}
     .btn-secondary:hover{background:rgba(201,169,110,0.08)}
-    .btn-secondary.copied{
-      color:#7be07b;
-      border-color:rgba(123,224,123,0.45);
-      background:rgba(123,224,123,0.06);
-    }
-    .trust{
-      font-size:13px;
-      letter-spacing:0.02em;
-      color:var(--ink-dim);
-      text-align:center;
-      margin-top:6px;
-    }
-    .hint{
-      margin-top:22px;
-      padding:14px 16px;
-      border-radius:14px;
-      background:rgba(253,246,236,0.04);
-      border:1px solid rgba(253,246,236,0.08);
-      font-size:13px;
-      line-height:1.5;
-      color:var(--ink-dim);
-    }
-    .spinner{
-      width:18px;height:18px;border-radius:50%;
-      border:2px solid rgba(255,255,255,0.3);
-      border-top-color:#fff;
-      animation:spin 0.9s linear infinite;
-      display:inline-block;
-      vertical-align:middle;
-      margin-right:8px;
-    }
+    .btn-secondary.copied{color:#7be07b;border-color:rgba(123,224,123,0.45);background:rgba(123,224,123,0.06);}
+    .trust{font-size:13px;letter-spacing:0.02em;color:var(--ink-dim);text-align:center;margin-top:6px;}
+    .hint{margin-top:22px;padding:14px 16px;border-radius:14px;background:rgba(253,246,236,0.04);border:1px solid rgba(253,246,236,0.08);font-size:13px;line-height:1.5;color:var(--ink-dim);}
+    .spinner{width:18px;height:18px;border-radius:50%;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;animation:spin 0.9s linear infinite;display:inline-block;vertical-align:middle;margin-right:8px;}
     @keyframes spin{to{transform:rotate(360deg)}}
-    .footer{
-      margin-top:30px;
-      text-align:center;
-      font-size:11px;
-      letter-spacing:0.18em;
-      text-transform:uppercase;
-      color:rgba(253,246,236,0.4);
-    }
-    @media (min-width: 720px){
-      .wrap{padding:56px 24px;}
-      .actions{flex-direction:row}
-      .btn{flex:1}
-    }
+    .footer{margin-top:30px;text-align:center;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:rgba(253,246,236,0.4);}
+    @media (min-width: 720px){.wrap{padding:56px 24px;}.actions{flex-direction:row}.btn{flex:1}}
   </style>
 </head>
 <body>
@@ -201,7 +78,7 @@
 
     <div class="actions">
       <a id="open-tg" class="btn btn-primary" data-testid="open-telegram-btn"
-         href="https://t.me/Altyn2304" rel="noopener" target="_blank">
+         href="https://t.me/altyndirectbot" rel="noopener" target="_blank">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M9.78 18.65l.28-4.23 7.68-6.92c.34-.31-.07-.46-.52-.19L7.74 13.3 3.64 12c-.88-.25-.89-.86.2-1.3l15.97-6.16c.73-.33 1.43.18 1.15 1.3l-2.72 12.81c-.19.91-.74 1.13-1.5.71L12.6 16.3l-1.99 1.93c-.23.23-.42.42-.83.42z"/></svg>
         <span>Открыть Telegram</span>
       </a>

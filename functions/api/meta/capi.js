@@ -36,6 +36,7 @@ const ALLOWED_CUSTOM_KEYS = new Set([
   'method', 'device_type', 'browser_type', 'in_app_browser_detected',
   'lead_type', 'copied_text_type',
   'seconds_on_page', 'scroll_depth',
+  'lead_id',
 ]);
 
 function sanitizeCustomData(input) {

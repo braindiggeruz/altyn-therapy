@@ -1,0 +1,32 @@
+# wrangler.toml — Cloudflare Pages Functions configuration
+#
+# This file is NOT required for Cloudflare Pages deployment (Pages reads
+# bindings from its dashboard), but it documents the exact bindings the
+# project needs. Use it locally with `wrangler pages dev` for testing.
+#
+# Required Cloudflare Pages settings (Production AND Preview):
+#
+#   Environment variables (Pages → Settings → Environment variables):
+#     META_PIXEL_ID            = 2475663283169925
+#     META_CAPI_ACCESS_TOKEN   = <secret from Meta Events Manager>
+#     META_TEST_EVENT_CODE     = <only while testing, then DELETE>
+#     ADMIN_SECRET             = <long random>
+#     TELEGRAM_BOT_TOKEN       = <bot @altyndirectbot token>
+#     TELEGRAM_WEBHOOK_SECRET  = <long random — for future webhook>
+#     TELEGRAM_NOTIFY_CHAT_ID  = -1003406252597
+#     INTENT_SECRET            = <long random — used by NextBot/CRM to call /api/telegram/qualified-intent>
+#
+#   KV namespaces bindings (Pages → Settings → Functions → KV namespace bindings):
+#     LEAD_ATTRIBUTION → ALTYN_LEAD_ATTRIBUTION (create namespace first)
+
+name = "altyn-therapy"
+compatibility_date = "2024-12-01"
+pages_build_output_dir = "."
+
+[[kv_namespaces]]
+binding = "LEAD_ATTRIBUTION"
+# IMPORTANT: replace <namespace-id> with the actual id after running
+# `wrangler kv:namespace create "ALTYN_LEAD_ATTRIBUTION"` OR creating
+# the namespace in the Cloudflare dashboard.
+id = "REPLACE_ME_WITH_KV_NAMESPACE_ID"
+preview_id = "REPLACE_ME_WITH_KV_NAMESPACE_ID"

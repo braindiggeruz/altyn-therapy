@@ -1,25 +1,28 @@
 /* =====================================================================
-   Altyn Therapy — /go/telegram bridge logic
+   Altyn Therapy — /go/telegram bridge logic (Telegram BOT version)
    ---------------------------------------------------------------------
-   Runs ONLY on the /go/telegram bridge page. Responsibilities:
-   1. On page load:
-        - fbq('track','Contact', …)  + parallel server CAPI Contact (same event_id)
-   2. Auto deep-link attempt to tg://resolve?domain=Altyn2304
-        - fires TelegramOpenAttempt (browser only)
-        - fires Lead (browser + server CAPI, single fire per session)
-   3. "Открыть Telegram" button:
-        - fires TelegramOpenAttempt + Lead (deduped against the auto attempt)
-   4. "Скопировать фразу" button:
-        - copies the lead phrase, fires CopyLeadPhrase
-   5. Detects in-app browsers and disables auto-open in IG/FB webviews
-      (deep links are unreliable there — we let the user tap instead).
+   Differences from the previous personal-profile bridge:
+   * Destination is the GPT-bot @altyndirectbot (not @Altyn2304).
+   * Generates a short `lead_id` and posts UTM/fbclid/_fbp/_fbc to
+     /api/lead-attribution so the bot side (NextBot / manager / future
+     own webhook) can recover the campaign attribution by lead_id and
+     hand it to /api/meta/qualified-lead.
+   * Deep-link uses tg://resolve?domain=altyndirectbot&start=<lead_id>
+     and fallback https://t.me/altyndirectbot?start=<lead_id>.
+   * Personal profile @Altyn2304 is no longer a public destination here;
+     it can still be offered inside the bot as a "talk to Altyn directly"
+     button if NextBot chooses.
+
+   Event ladder fired from this page (browser pixel + server CAPI):
+     PageView -> Contact -> TelegramOpenAttempt -> Lead -> CopyLeadPhrase
+   Lead is deduplicated to one fire per session via sessionStorage flag.
    ===================================================================== */
 (function () {
   'use strict';
 
-  var TG_USERNAME = 'Altyn2304';
-  var TG_APP_URL = 'tg://resolve?domain=' + TG_USERNAME;
-  var TG_WEB_URL = 'https://t.me/' + TG_USERNAME;
+  var BOT_USERNAME = 'altyndirectbot';
+  var TG_APP_URL_BASE = 'tg://resolve?domain=' + BOT_USERNAME;
+  var TG_WEB_URL_BASE = 'https://t.me/' + BOT_USERNAME;
   var LEAD_PHRASE = 'Хочу разбор сценария за 10$';
   var OFFER = {
     offer_name: 'scenario_diagnostic_10usd',
@@ -27,7 +30,9 @@
     currency: 'USD'
   };
   var CAPI_ENDPOINT = '/api/meta/capi';
+  var ATTRIB_ENDPOINT = '/api/lead-attribution';
 
+  // -------- helpers --------
   function getUTM() {
     try { return (window.altynUTM && window.altynUTM.get()) || {}; } catch (e) { return {}; }
   }
@@ -35,12 +40,40 @@
     try { return window.altynUTM.getEventId(key); }
     catch (e) { return 'altyn_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10); }
   }
+
+  function shortBase36(n) {
+    return Number(n).toString(36).replace(/[^a-z0-9]/g, '').slice(-6);
+  }
+  function randSegment(len) {
+    var alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    var out = '';
+    for (var i = 0; i < len; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
+    return out;
+  }
+  // Telegram /start payload allows [A-Za-z0-9_-] up to 64 chars. We keep
+  // ours short and easy to log: l_<ts>_<rand>.
+  function generateLeadId() {
+    return 'l_' + shortBase36(Date.now()) + '_' + randSegment(5);
+  }
+
+  function getOrCreateLeadId() {
+    var k = 'altyn_lead_id_v1';
+    try {
+      var existing = sessionStorage.getItem(k);
+      if (existing && /^l_[a-z0-9_]{6,40}$/.test(existing)) return existing;
+      var id = generateLeadId();
+      sessionStorage.setItem(k, id);
+      return id;
+    } catch (e) {
+      return generateLeadId();
+    }
+  }
+
   function fbqTrack(eventName, params, opts) {
     try {
       if (typeof window.fbq !== 'function') return;
       var p = params || {};
       var o = opts || {};
-      // Use trackCustom for non-standard names
       var standardEvents = { PageView:1, ViewContent:1, Lead:1, Contact:1, CompleteRegistration:1, Search:1, AddToCart:1, Purchase:1, InitiateCheckout:1, AddPaymentInfo:1, Subscribe:1 };
       var method = standardEvents[eventName] ? 'track' : 'trackCustom';
       if (o.eventID) {
@@ -51,26 +84,22 @@
     } catch (e) { /* noop */ }
   }
 
-  function postCAPI(payload) {
+  function postJSON(endpoint, payload) {
     try {
       var body = JSON.stringify(payload);
-      // Prefer fetch+keepalive over sendBeacon: keepalive lets the request
-      // survive page unload (deep-link to Telegram), AND it's intercept-able
-      // by service workers / route mocks for testing.
       if (typeof fetch === 'function') {
-        fetch(CAPI_ENDPOINT, {
+        fetch(endpoint, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: body,
           keepalive: true,
           credentials: 'omit',
           mode: 'same-origin'
-        }).catch(function () { /* swallow */ });
+        }).catch(function () {});
         return;
       }
       if (navigator.sendBeacon) {
-        var blob = new Blob([body], { type: 'application/json' });
-        navigator.sendBeacon(CAPI_ENDPOINT, blob);
+        navigator.sendBeacon(endpoint, new Blob([body], { type: 'application/json' }));
       }
     } catch (e) { /* noop */ }
   }
@@ -115,7 +144,6 @@
       currency: OFFER.currency
     };
     if (extra) Object.keys(extra).forEach(function (k) { base[k] = extra[k]; });
-    // strip nulls so we don't pollute fbq event params
     var clean = {};
     Object.keys(base).forEach(function (k) {
       if (base[k] !== null && base[k] !== undefined && base[k] !== '') clean[k] = base[k];
@@ -134,20 +162,14 @@
       params = extraParams || {};
       u = {};
     }
+    try { fbqTrack(eventName, params, { eventID: eventId }); } catch (e) {}
 
-    // 1) Browser pixel — safe by itself, but isolate so a fbq error never
-    //    swallows the CAPI call below.
-    try {
-      fbqTrack(eventName, params, { eventID: eventId });
-    } catch (e) { /* noop */ }
-
-    // 2) Server CAPI (whitelisted server events only)
-    var serverEvents = { Contact: 1, Lead: 1, TelegramOpenAttempt: 1, CopyLeadPhrase: 1, LandingQualifiedView: 1, CTA_Click: 1 };
+    var serverEvents = { Contact: 1, Lead: 1, TelegramOpenAttempt: 1, CopyLeadPhrase: 1 };
     if (!serverEvents[eventName]) return eventId;
     if (opts && opts.serverSkip) return eventId;
 
     try {
-      postCAPI({
+      postJSON(CAPI_ENDPOINT, {
         event_name: eventName,
         event_id: eventId,
         event_time: Math.floor(Date.now() / 1000),
@@ -157,11 +179,11 @@
         fbc: u._fbc || null,
         custom_data: params
       });
-    } catch (e) { /* noop */ }
+    } catch (e) {}
     return eventId;
   }
 
-  // ----- Dedupe state for Lead (per session, per bridge load) -----
+  // -------- session flags (lead dedupe) --------
   var SESSION_FLAGS_KEY = 'altyn_bridge_flags_v1';
   function readFlags() {
     try { return JSON.parse(sessionStorage.getItem(SESSION_FLAGS_KEY) || '{}'); }
@@ -172,73 +194,109 @@
     try { sessionStorage.setItem(SESSION_FLAGS_KEY, JSON.stringify(f)); } catch (e) {}
   }
 
-  // ===================================================================
-  // Step 1 — Contact on bridge load
-  // ===================================================================
+  // -------- lead_id + attribution --------
+  var LEAD_ID = getOrCreateLeadId();
   var device = detectDevice();
+  var contactEventId = getEventId('bridge_contact');
+  var leadEventId = getEventId('tg_lead');
+
+  // Compose Telegram URLs with the lead_id as Telegram /start payload
+  function bridgeTgAppUrl() { return TG_APP_URL_BASE + '&start=' + encodeURIComponent(LEAD_ID); }
+  function bridgeTgWebUrl() { return TG_WEB_URL_BASE + '?start=' + encodeURIComponent(LEAD_ID); }
+
+  // Update the visible anchor href so the manual button uses lead_id too.
+  (function fixOpenButtonHref() {
+    function apply() {
+      var a = document.getElementById('open-tg');
+      if (a) a.setAttribute('href', bridgeTgWebUrl());
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', apply, { once: true });
+    } else { apply(); }
+  })();
+
+  // Save attribution mapping to KV. If KV binding is missing, the server
+  // returns 503/ok:false silently — that's fine, this is best-effort.
+  function sendAttribution() {
+    var u = getUTM();
+    if (readFlags().attribution_sent) return;
+    setFlag('attribution_sent');
+    postJSON(ATTRIB_ENDPOINT, {
+      lead_id: LEAD_ID,
+      payload: LEAD_ID,
+      utm_source: u.utm_source || null,
+      utm_medium: u.utm_medium || null,
+      utm_campaign: u.utm_campaign || null,
+      utm_content: u.utm_content || null,
+      utm_term: u.utm_term || null,
+      fbclid: u.fbclid || null,
+      _fbp: u._fbp || null,
+      _fbc: u._fbc || null,
+      landing_page: u.landing_url || (location.origin + '/'),
+      referrer: u.referrer || document.referrer || '',
+      cta_location: 'bridge',
+      adset_code: u.utm_content || null,
+      creative_code: u.utm_term || null,
+      contact_event_id: contactEventId,
+      lead_event_id: leadEventId
+    });
+  }
+
+  // -------- Step 1: Contact on bridge load --------
   var contactParams = {
-    content_name: 'telegram_redirect_page',
-    contact_channel: 'telegram',
-    destination: TG_USERNAME,
+    content_name: 'telegram_bot_bridge',
+    contact_channel: 'telegram_bot',
+    destination: BOT_USERNAME,
     device_type: device.device_type,
     browser_type: device.browser_type,
-    in_app_browser_detected: device.in_app_browser_detected
+    in_app_browser_detected: device.in_app_browser_detected,
+    lead_id: LEAD_ID
   };
-  // Fire Contact once per bridge page load (sessionKey ties browser+server eventIds)
   if (!readFlags().contact_sent) {
     track('Contact', 'bridge_contact', contactParams);
     setFlag('contact_sent');
   }
+  // Best-effort persistence of UTM mapping by lead_id
+  sendAttribution();
 
-  // ===================================================================
-  // Step 2 — Telegram open attempt (auto + manual button)
-  // ===================================================================
+  // -------- Step 2: Telegram open attempt + Lead --------
   function fireTelegramOpenAttempt(method) {
     var flags = readFlags();
-    // Allow at most ONE TelegramOpenAttempt per session+method (auto/fallback).
     var flagKey = 'tg_open_' + method;
     if (flags[flagKey]) return;
     setFlag(flagKey);
 
-    var params = Object.assign({}, contactParams, {
-      method: method, // 'auto_deeplink' | 'fallback_button'
-    });
+    var params = Object.assign({}, contactParams, { method: method });
     track('TelegramOpenAttempt', 'tg_open_attempt_' + method, params);
 
-    // Lead — only once per bridge session, regardless of method.
     if (!flags.lead_sent) {
       setFlag('lead_sent');
       track('Lead', 'tg_lead', {
-        content_name: 'telegram_open_lead',
+        content_name: 'telegram_bot_open_lead',
         lead_type: OFFER.offer_name,
-        contact_channel: 'telegram',
-        destination: TG_USERNAME,
+        contact_channel: 'telegram_bot',
+        destination: BOT_USERNAME,
         device_type: device.device_type,
         browser_type: device.browser_type,
-        in_app_browser_detected: device.in_app_browser_detected
+        in_app_browser_detected: device.in_app_browser_detected,
+        lead_id: LEAD_ID
       });
     }
   }
 
   function attemptAutoOpen() {
-    // In-app browsers (Instagram/Facebook webview) usually ignore tg:// silently,
-    // and many block window.location change to custom schemes. We still fire
-    // the auto attempt event (so we know the user reached the bridge with
-    // intent), but we do NOT force a location change there — let the user tap.
     if (device.in_app_browser_detected) {
+      // tg:// is unreliable in IG/FB webview — fire the event but don't navigate.
       fireTelegramOpenAttempt('auto_deeplink');
       return;
     }
     fireTelegramOpenAttempt('auto_deeplink');
-    // Slight delay so analytics + CAPI beacon flush before we navigate away.
     setTimeout(function () {
-      try { window.location.href = TG_APP_URL; } catch (e) {}
+      try { window.location.href = bridgeTgAppUrl(); } catch (e) {}
     }, 350);
   }
 
-  // ===================================================================
-  // Step 3 — Bind UI
-  // ===================================================================
+  // -------- Step 3: Bind UI --------
   function onReady(fn) {
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', fn, { once: true });
@@ -251,11 +309,9 @@
     var copyLabel = document.getElementById('copy-label');
 
     if (openBtn) {
-      openBtn.addEventListener('click', function (e) {
-        // Let the normal anchor navigation happen (target=_blank → t.me),
-        // but also fire the events.
+      openBtn.setAttribute('href', bridgeTgWebUrl());
+      openBtn.addEventListener('click', function () {
         fireTelegramOpenAttempt('fallback_button');
-        // We DON'T preventDefault — the anchor's href takes the user to t.me.
       });
     }
 
@@ -270,14 +326,14 @@
           }, 2400);
           track('CopyLeadPhrase', 'copy_phrase', {
             content_name: 'lead_phrase_copy',
-            copied_text_type: 'telegram_first_message'
+            copied_text_type: 'telegram_first_message',
+            lead_id: LEAD_ID
           });
         };
         try {
           if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(LEAD_PHRASE).then(function () { done(true); }, function () { done(false); });
           } else {
-            // Fallback for older Safari / in-app browsers
             var ta = document.createElement('textarea');
             ta.value = LEAD_PHRASE;
             ta.style.position = 'fixed';
@@ -293,16 +349,15 @@
       });
     }
 
-    // Auto-open with a short, visible delay so the user reads the phrase first.
     setTimeout(attemptAutoOpen, 800);
   });
 
-  // Expose for debugging
   window.altynBridge = {
+    leadId: LEAD_ID,
     fireTelegramOpenAttempt: fireTelegramOpenAttempt,
     device: device,
     phrase: LEAD_PHRASE,
-    tgApp: TG_APP_URL,
-    tgWeb: TG_WEB_URL
+    tgApp: bridgeTgAppUrl(),
+    tgWeb: bridgeTgWebUrl()
   };
 })();
