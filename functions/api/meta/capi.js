@@ -139,6 +139,24 @@ export async function onRequestPost(context) {
 
   const customData = sanitizeCustomData(payload.custom_data);
 
+  // Safety normalizer: Meta requires value+currency on Lead events.
+  // If a (legacy) caller forgets to include them, force the canonical offer
+  // values so Meta Events Manager stops flagging "Missing currency parameter".
+  // The source of truth is still the browser pixel — this is a safety net.
+  if (eventName === 'Lead') {
+    if (customData.value === undefined || customData.value === null || customData.value === '') {
+      customData.value = 10;
+    }
+    if (!customData.currency || typeof customData.currency !== 'string') {
+      customData.currency = 'USD';
+    } else {
+      // Normalize: strip non-letters, uppercase, truncate to 3.
+      const cur = String(customData.currency).replace(/[^A-Za-z]/g, '').toUpperCase().slice(0, 3);
+      customData.currency = cur && cur.length === 3 ? cur : 'USD';
+    }
+    if (!customData.offer_name) customData.offer_name = 'scenario_diagnostic_10usd';
+  }
+
   const event = {
     event_name: eventName,
     event_time: eventTime,
