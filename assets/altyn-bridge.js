@@ -1,17 +1,13 @@
 /* =====================================================================
-   Altyn Therapy — /go/telegram bridge logic (Telegram BOT version)
+   Altyn Therapy — /go/telegram bridge logic (Direct DM to Altyn)
    ---------------------------------------------------------------------
-   Differences from the previous personal-profile bridge:
-   * Destination is the GPT-bot @altyndirectbot (not @Altyn2304).
-   * Generates a short `lead_id` and posts UTM/fbclid/_fbp/_fbc to
-     /api/lead-attribution so the bot side (NextBot / manager / future
-     own webhook) can recover the campaign attribution by lead_id and
-     hand it to /api/meta/qualified-lead.
-   * Deep-link uses tg://resolve?domain=altyndirectbot&start=<lead_id>
-     and fallback https://t.me/altyndirectbot?start=<lead_id>.
-   * Personal profile @Altyn2304 is no longer a public destination here;
-     it can still be offered inside the bot as a "talk to Altyn directly"
-     button if NextBot chooses.
+   Destination is Altyn's personal Telegram @Altyn2304 (not a bot).
+   * Personal Telegram accounts do NOT support /start payloads, so the
+     deep-link is a clean tg://resolve?domain=Altyn2304 (no &start=).
+   * We STILL generate a short `lead_id` and post UTM/fbclid/_fbp/_fbc to
+     /api/lead-attribution to preserve campaign attribution analytics.
+     The lead_id is logged server-side; it just isn't passed via Telegram
+     start payload anymore.
 
    Event ladder fired from this page (browser pixel + server CAPI):
      PageView -> Contact -> TelegramOpenAttempt -> Lead -> CopyLeadPhrase
@@ -20,9 +16,9 @@
 (function () {
   'use strict';
 
-  var BOT_USERNAME = 'altyndirectbot';
-  var TG_APP_URL_BASE = 'tg://resolve?domain=' + BOT_USERNAME;
-  var TG_WEB_URL_BASE = 'https://t.me/' + BOT_USERNAME;
+  var TG_USERNAME = 'Altyn2304';
+  var TG_APP_URL = 'tg://resolve?domain=' + TG_USERNAME;
+  var TG_WEB_URL = 'https://t.me/' + TG_USERNAME;
   var LEAD_PHRASE = 'Хочу разбор сценария за 10$';
   var OFFER = {
     offer_name: 'scenario_diagnostic_10usd',
@@ -200,9 +196,11 @@
   var contactEventId = getEventId('bridge_contact');
   var leadEventId = getEventId('tg_lead');
 
-  // Compose Telegram URLs with the lead_id as Telegram /start payload
-  function bridgeTgAppUrl() { return TG_APP_URL_BASE + '&start=' + encodeURIComponent(LEAD_ID); }
-  function bridgeTgWebUrl() { return TG_WEB_URL_BASE + '?start=' + encodeURIComponent(LEAD_ID); }
+  // Compose Telegram URLs. Personal profile @Altyn2304 does not support
+  // /start payloads — keep URLs clean. lead_id is still posted to
+  // /api/lead-attribution for campaign attribution.
+  function bridgeTgAppUrl() { return TG_APP_URL; }
+  function bridgeTgWebUrl() { return TG_WEB_URL; }
 
   // Update the visible anchor href so the manual button uses lead_id too.
   (function fixOpenButtonHref() {
@@ -246,7 +244,7 @@
   var contactParams = {
     content_name: 'telegram_bot_bridge',
     contact_channel: 'telegram_bot',
-    destination: BOT_USERNAME,
+    destination: TG_USERNAME,
     device_type: device.device_type,
     browser_type: device.browser_type,
     in_app_browser_detected: device.in_app_browser_detected,
@@ -275,7 +273,7 @@
         content_name: 'telegram_bot_open_lead',
         lead_type: OFFER.offer_name,
         contact_channel: 'telegram_bot',
-        destination: BOT_USERNAME,
+        destination: TG_USERNAME,
         device_type: device.device_type,
         browser_type: device.browser_type,
         in_app_browser_detected: device.in_app_browser_detected,
